@@ -1,4 +1,4 @@
-# GitSmart
+# GitSmart (very early WIP)
 
 An http.Handler type thing that works well with go-git.
 The name is based on the name of the more robust/modern HTTP protocal used in the Git plumbing/tranfer stuff.
