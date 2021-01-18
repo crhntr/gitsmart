@@ -2,11 +2,13 @@ package gitsmart
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/format/pktline"
+	"github.com/go-git/go-git/v5/plumbing/protocol/packp"
+	"github.com/go-git/go-git/v5/plumbing/protocol/packp/capability"
 	"github.com/go-git/go-git/v5/plumbing/storer"
 	"github.com/go-git/go-git/v5/plumbing/transport"
 )
@@ -30,68 +32,24 @@ func Handle(res http.ResponseWriter, req *http.Request, store storer.Storer) err
 }
 
 func handleUploadPackService(res http.ResponseWriter, req *http.Request, store storer.Storer) error {
-	w := pktline.NewEncoder(res)
-
 	res.Header().Set("Cache-Control", "no-cache")
 	res.Header().Set("Content-Type", "application/x-git-upload-pack-advertisement")
 
-	if err := w.EncodeString("# service=git-upload-pack\n"); err != nil {
-		return err
-	}
-
-	if err := w.Flush(); err != nil {
-		return err
-	}
-	_, _ = res.Write([]byte{'\n'})
-
-
 	refIter, _ := store.IterReferences()
 
-	var references []plumbing.Reference
+	advRefs := packp.NewAdvRefs()
+
+	advRefs.Capabilities = capability.NewList()
 
 	if err := refIter.ForEach(func(reference *plumbing.Reference) error {
-		references = append(references, *reference)
-		return nil
+		return advRefs.AddReference(reference)
 	}); err != nil {
 		return err
 	}
 
-	capabilities := []string{"some-capability"}
-
-	if len(references) == 0 {
-		if err := w.Encodef("%s capabilities^{}\u0000%s\n", plumbing.ZeroHash, strings.Join(capabilities, " ")); err != nil {
-			return err
-		}
-
-		if err := w.Flush(); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	for i, ref := range references {
-		suffix := "\n"
-
-		if i == len(references)-1 {
-			suffix += "^{}"
-		}
-
-		if i == 0 {
-			suffix = "\u0000" + strings.Join(capabilities, " ") + suffix
-		}
-
-		if err := w.Encodef("%s %s%s"+suffix, ref.Hash(), ref.Hash(), suffix); err != nil {
-			return err
-		}
-	}
-
-	if err := w.Flush(); err != nil {
-		return err
-	}
-
-
-	return nil
+	res.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprintf(res, "001e# service=git-upload-pack\n%s\n", pktline.FlushPkt)
+	return advRefs.Encode(res)
 }
 
 func handleReceivePackService(res http.ResponseWriter, req *http.Request, store storer.Storer) error {

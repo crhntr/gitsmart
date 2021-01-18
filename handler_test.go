@@ -1,11 +1,11 @@
 package gitsmart
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -47,13 +47,14 @@ func TestHandle(t *testing.T) {
 		please.Expect(res.Code).To(Ω.Equal(http.StatusOK))
 
 		buf, _ := ioutil.ReadAll(res.Body)
-		lines := bytes.Split(buf, []byte("\n"))
+		lines := strings.Split(string(buf), "\n")
 
-		please.Expect(lines).To(Ω.HaveLen(4))
-		please.Expect(lines[0]).To(Ω.Equal([]byte("001e# service=git-upload-pack")))
-		please.Expect(lines[1]).To(Ω.Equal([]byte("0000")))
-		please.Expect(lines[2][4:]).To(Ω.Equal([]byte("0000000000000000000000000000000000000000 capabilities^{}\x00")))
-		please.Expect(lines[3]).To(Ω.Equal([]byte("0000")))
+		please.Expect(lines).To(Ω.Equal([]string{
+			"001e# service=git-upload-pack",
+			"0000",
+			"005b0000000000000000000000000000000000000000 capabilities^{}\x00symref=HEAD:refs/heads/master",
+			"0000",
+		}))
 	})
 
 	t.Run("when one branch exists", func(t *testing.T) {
@@ -73,13 +74,14 @@ func TestHandle(t *testing.T) {
 		please.Expect(res.Code).To(Ω.Equal(http.StatusOK))
 
 		buf, _ := ioutil.ReadAll(res.Body)
-		lines := bytes.Split(buf, []byte("\n"))
+		lines := strings.Split(string(buf), "\n")
 
-		please.Expect(lines).To(Ω.HaveLen(4))
-		please.Expect(lines[0]).To(Ω.Equal([]byte("001e# service=git-upload-pack")))
-		please.Expect(lines[1]).To(Ω.Equal([]byte("0000")))
-		please.Expect(lines[2][4:]).To(Ω.Equal([]byte(fmt.Sprintf("%s refs/heads/master^{}\x00some-capability\n", initialCommitHash))))
-		please.Expect(lines[3]).To(Ω.Equal([]byte("0000")))
+		please.Expect(lines).To(Ω.Equal([]string{
+			"001e# service=git-upload-pack",
+			"0000",
+			fmt.Sprintf("005d%s refs/heads/master\x00symref=HEAD:refs/heads/master", initialCommitHash),
+			"0000",
+		}))
 	})
 }
 
